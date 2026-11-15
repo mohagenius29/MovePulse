@@ -75,6 +75,9 @@ fun AnalysisScreen(todayHours: List<HourStat>, week: List<HourStat>, goal: Int) 
                 LegendRow(Color(0xFF66BB6A), "Walking", t.walkMin)
                 LegendRow(Color(0xFFFFA726), "Jogging", t.jogMin)
                 LegendRow(Color(0xFFEF5350), "Running", t.runMin)
+                LegendRow(Color(0xFFAB47BC), "Squats", t.squatMin)
+                LegendRow(Color(0xFFFFCA28), "Jumping jacks", t.jumpMin)
+                LegendRow(Color(0xFFEC407A), "Dancing", t.danceMin)
                 LegendRow(Color(0xFF42A5F5), "Other movement", t.moveMin)
             }
         }

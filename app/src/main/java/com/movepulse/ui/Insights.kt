@@ -16,6 +16,9 @@ data class Totals(
     val jogMin: Int,
     val runMin: Int,
     val moveMin: Int,
+    val squatMin: Int,
+    val jumpMin: Int,
+    val danceMin: Int,
 )
 
 fun List<HourStat>.totals() = Totals(
@@ -26,6 +29,9 @@ fun List<HourStat>.totals() = Totals(
     jogMin = sumOf { it.jogSeconds } / 60,
     runMin = sumOf { it.runSeconds } / 60,
     moveMin = sumOf { it.moveSeconds } / 60,
+    squatMin = sumOf { it.squatSeconds } / 60,
+    jumpMin = sumOf { it.jumpSeconds } / 60,
+    danceMin = sumOf { it.danceSeconds } / 60,
 )
 
 private fun hourLabel(h: Int): String {
@@ -57,6 +63,14 @@ fun buildInsights(week: List<HourStat>, goal: Int): List<Insight> {
 
     todayRows.maxByOrNull { it.activeSeconds }?.takeIf { it.activeSeconds > 0 }?.let {
         result += Insight("⏰", "Your most active hour today was ${hourLabel(it.hour)} (${it.activeSeconds / 60} active min).")
+    }
+
+    val ex = todayRows.totals()
+    if (ex.squatMin + ex.jumpMin + ex.danceMin > 0) {
+        result += Insight(
+            "🏋️",
+            "Auto-detected today: ${ex.squatMin} min squats, ${ex.jumpMin} min jumping jacks, ${ex.danceMin} min dancing."
+        )
     }
 
     val nowHour = LocalDateTime.now().hour

@@ -30,6 +30,7 @@ import com.movepulse.ui.AnalysisScreen
 import com.movepulse.ui.MainViewModel
 import com.movepulse.ui.MapScreen
 import com.movepulse.ui.TodayScreen
+import com.movepulse.ui.WorkoutsScreen
 
 class MainActivity : ComponentActivity() {
     private val vm: MainViewModel by viewModels()
@@ -45,10 +46,11 @@ class MainActivity : ComponentActivity() {
                 val todayHours by vm.todayHours.collectAsStateWithLifecycle()
                 val week by vm.week.collectAsStateWithLifecycle()
                 val route by vm.route.collectAsStateWithLifecycle()
+                val sessions by vm.sessions.collectAsStateWithLifecycle()
 
                 Scaffold(bottomBar = {
                     NavigationBar {
-                        listOf("🏠" to "Today", "🗺" to "Map", "📊" to "Analysis").forEachIndexed { i, (icon, label) ->
+                        listOf("🏠" to "Today", "🗺" to "Map", "🏋" to "Workouts", "📊" to "Analysis").forEachIndexed { i, (icon, label) ->
                             NavigationBarItem(
                                 selected = tab == i,
                                 onClick = { tab = i },
@@ -60,8 +62,9 @@ class MainActivity : ComponentActivity() {
                 }) { padding ->
                     Box(Modifier.padding(padding)) {
                         when (tab) {
-                            0 -> TodayScreen(vm, todayHours)
+                            0 -> TodayScreen(vm, todayHours, sessions)
                             1 -> MapScreen(route)
+                            2 -> WorkoutsScreen(vm)
                             else -> AnalysisScreen(todayHours, week, vm.prefs.dailyGoal)
                         }
                     }

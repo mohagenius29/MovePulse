@@ -22,10 +22,27 @@ data class HourStat(
     val walkSeconds: Int = 0,
     val jogSeconds: Int = 0,
     val runSeconds: Int = 0,
-    val moveSeconds: Int = 0,  // movement without steps (dancing, chores, exercise)
+    val moveSeconds: Int = 0,  // other movement and manually logged workouts
+    val squatSeconds: Int = 0,
+    val jumpSeconds: Int = 0,
+    val danceSeconds: Int = 0,
 ) {
-    val activeSeconds: Int get() = walkSeconds + jogSeconds + runSeconds + moveSeconds
+    val activeSeconds: Int
+        get() = walkSeconds + jogSeconds + runSeconds + moveSeconds + squatSeconds + jumpSeconds + danceSeconds
 }
+
+/** One workout: auto-detected (squats, jumping jacks, dancing) or logged from the Workouts tab. */
+@Entity(tableName = "exercise_sessions")
+data class ExerciseSession(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val date: String,
+    val startTs: Long,
+    val name: String,
+    val reps: Int,
+    val durationSec: Int,
+    val kcal: Float,
+    val auto: Boolean,
+)
 
 /** GPS points of walks/jogs/runs, drawn on the map. */
 @Entity(tableName = "route_points")
@@ -58,13 +75,23 @@ interface StatsDao {
     suspend fun totalCalories(date: String): Float
 
     @Insert
+    suspend fun insertSession(session: ExerciseSession)
+
+    @Query("SELECT * FROM exercise_sessions WHERE date = :date ORDER BY startTs DESC")
+    fun sessionsFor(date: String): Flow<List<ExerciseSession>>
+
+    @Insert
     suspend fun insertPoint(point: RoutePoint)
 
     @Query("SELECT * FROM route_points WHERE date = :date ORDER BY ts")
     fun routeFor(date: String): Flow<List<RoutePoint>>
 }
 
-@Database(entities = [HourStat::class, RoutePoint::class], version = 1, exportSchema = false)
+@Database(
+    entities = [HourStat::class, RoutePoint::class, ExerciseSession::class],
+    version = 2,
+    exportSchema = false,
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun statsDao(): StatsDao
 
@@ -74,7 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext, AppDatabase::class.java, "movepulse.db"
-            ).build().also { instance = it }
+            ).fallbackToDestructiveMigration().build().also { instance = it }
         }
     }
 }

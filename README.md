@@ -39,7 +39,14 @@ MovePulse aims to turn everyday movement into a rewarding habit. Whether you're 
 
 ## Status
 
-First build (v0.1): step counting, activity classification (still / moving / walking / jogging / running), calorie estimates, milestone and inactivity notifications, route map and daily analysis. Squat/dance rep detection, the home workout library and heart rate are next.
+First build (v0.1): step counting, activity classification (still / moving / walking / jogging / running), calorie estimates, milestone and inactivity notifications, route map and daily analysis. v0.2 adds autonomous exercise detection and a home workout library:
+
+- **Auto-detected exercises:** squats and jumping jacks (with rep counts) and dancing, found from the phone's motion sensor with no button presses. Keep the phone in a pocket or armband. Each detected workout is saved as a session with reps, time and calories, and you get "10 squats!" style notifications.
+- **Workouts tab:** 10 no-equipment workouts with instructions. Workouts marked AUTO are detected and counted for you. The rest (lunges, push-ups, plank, wall sit, stretching) use a timer and add calories when you finish.
+- Detection thresholds live in `DetectorConfig` (`ExerciseDetector.kt`). They are physics-based starting values and still need tuning on real phones. Jumping jacks can be mistaken for walking if the phone's step sensor fires during them.
+- The accelerometer now samples at 25 Hz to see these movements, which uses more battery than step counting alone.
+
+Heart rate is next.
 
 ## Build
 

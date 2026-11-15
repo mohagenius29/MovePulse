@@ -20,6 +20,7 @@ import android.os.Looper
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.movepulse.data.AppDatabase
+import com.movepulse.data.ExerciseSession
 import com.movepulse.data.HourStat
 import com.movepulse.data.Prefs
 import com.movepulse.data.RoutePoint
@@ -60,6 +61,13 @@ class TrackingService : Service(), SensorEventListener, LocationListener {
     @Volatile private var currentType = ActivityType.STILL
     private var lastMotion = System.currentTimeMillis()
     private var lastLocation: Location? = null
+
+    // autonomous exercise detection
+    private val detector = ExerciseDetector()
+    private var sessionType: ActivityType? = null
+    private var sessionStart = 0L
+    private var sessionKcal = 0f
+    private var lastRepMilestone = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -106,7 +114,11 @@ class TrackingService : Service(), SensorEventListener, LocationListener {
         sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)?.let {
             sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
+        // 25 Hz (40 ms) is needed to see squats, jumps and dancing.
         sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
+            sensors.registerListener(this, it, 40_000)
+        }
+        sensors.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)?.let {
             sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
         if (hasLocationPermission()) {
@@ -124,13 +136,17 @@ class TrackingService : Service(), SensorEventListener, LocationListener {
     override fun onSensorChanged(event: SensorEvent) {
         when (event.sensor.type) {
             Sensor.TYPE_STEP_COUNTER -> rawSteps = event.values[0]
+            Sensor.TYPE_STEP_DETECTOR -> detector.onStep(event.timestamp / 1_000_000)
             Sensor.TYPE_ACCELEROMETER -> {
-                val (x, y, z) = Triple(event.values[0], event.values[1], event.values[2])
+                val x = event.values[0]
+                val y = event.values[1]
+                val z = event.values[2]
                 val magnitude = sqrt(x * x + y * y + z * z)
                 synchronized(this) {
                     accelSum += abs(magnitude - 9.81f)
                     accelCount++
                 }
+                if (detector.onAccel(event.timestamp / 1_000_000, x, y, z)) publishLive()
             }
         }
     }
@@ -171,7 +187,7 @@ class TrackingService : Service(), SensorEventListener, LocationListener {
         }
 
         val cadence = delta * (60 / TICK_SECONDS)   // steps per minute
-        val type = when {
+        val baseType = when {
             delta >= 3 -> when {
                 cadence < 135 -> ActivityType.WALK
                 cadence < 165 -> ActivityType.JOG
@@ -180,7 +196,11 @@ class TrackingService : Service(), SensorEventListener, LocationListener {
             avgAccel > 0.8 -> ActivityType.MOVE
             else -> ActivityType.STILL
         }
+        // An auto-detected exercise (squats, jumping jacks, dancing) overrides plain step logic.
+        val exercise = detector.current
+        val type = if (exercise.isExercise) exercise else baseType
         currentType = type
+        publishLive()
         if (type != ActivityType.STILL) lastMotion = System.currentTimeMillis()
 
         val now = LocalDateTime.now()
@@ -194,11 +214,63 @@ class TrackingService : Service(), SensorEventListener, LocationListener {
                 jogSeconds = cur.jogSeconds + if (type == ActivityType.JOG) TICK_SECONDS else 0,
                 runSeconds = cur.runSeconds + if (type == ActivityType.RUN) TICK_SECONDS else 0,
                 moveSeconds = cur.moveSeconds + if (type == ActivityType.MOVE) TICK_SECONDS else 0,
+                squatSeconds = cur.squatSeconds + if (type == ActivityType.SQUAT) TICK_SECONDS else 0,
+                jumpSeconds = cur.jumpSeconds + if (type == ActivityType.JUMP) TICK_SECONDS else 0,
+                danceSeconds = cur.danceSeconds + if (type == ActivityType.DANCE) TICK_SECONDS else 0,
             )
         )
 
+        trackSession(type, date, CalorieCalculator.kcal(type, prefs.weightKg, TICK_SECONDS))
         checkMilestones(date, type)
         checkInactivity(now)
+    }
+
+    private fun publishLive() {
+        val ex = detector.current
+        LiveState.current.value = Live(if (ex.isExercise) ex else currentType, detector.reps)
+    }
+
+    /** Opens/closes auto-detected exercise sessions and cheers on rep milestones. */
+    private suspend fun trackSession(type: ActivityType, date: String, kcalTick: Float) {
+        val exType = if (type.isExercise) type else null
+        if (exType != sessionType) {
+            finishSession(date)
+            if (exType != null) {
+                sessionType = exType
+                sessionStart = System.currentTimeMillis()
+                sessionKcal = 0f
+                lastRepMilestone = 0
+            }
+        }
+        if (exType != null) {
+            sessionKcal += kcalTick
+            val reps = detector.reps
+            if (exType.countsReps && reps / 10 > lastRepMilestone) {
+                lastRepMilestone = reps / 10
+                Notifier.progress(
+                    this, "${exType.label} streak! 💥",
+                    MotivationEngine.repMilestone(exType, reps, sessionKcal.roundToInt())
+                )
+            }
+        }
+    }
+
+    private suspend fun finishSession(date: String) {
+        val t = sessionType ?: return
+        sessionType = null
+        val seconds = ((System.currentTimeMillis() - sessionStart) / 1000).toInt()
+        if (seconds < 20) return
+        val reps = if (t.countsReps) detector.lastFinishedReps else 0
+        dao.insertSession(
+            ExerciseSession(
+                date = date, startTs = sessionStart, name = t.label, reps = reps,
+                durationSec = seconds, kcal = sessionKcal, auto = true,
+            )
+        )
+        Notifier.progress(
+            this, "${t.label} complete! 🏅",
+            MotivationEngine.sessionDone(t, reps, seconds, sessionKcal.roundToInt())
+        )
     }
 
     private suspend fun checkMilestones(date: String, type: ActivityType) {

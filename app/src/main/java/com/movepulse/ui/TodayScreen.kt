@@ -26,10 +26,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.movepulse.data.ExerciseSession
+import com.movepulse.tracking.ActivityType
+import com.movepulse.tracking.LiveState
 import com.movepulse.tracking.MotivationEngine
 
 @Composable
-fun TodayScreen(vm: MainViewModel, hoursState: List<com.movepulse.data.HourStat>) {
+fun TodayScreen(
+    vm: MainViewModel,
+    hoursState: List<com.movepulse.data.HourStat>,
+    sessions: List<ExerciseSession>,
+) {
+    val live by LiveState.current.collectAsStateWithLifecycle()
     val t = hoursState.totals()
     val goal = vm.prefs.dailyGoal
     val quote = remember { MotivationEngine.quote() }
@@ -58,6 +67,28 @@ fun TodayScreen(vm: MainViewModel, hoursState: List<com.movepulse.data.HourStat>
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard("🔥 Calories", "${t.kcal} kcal", Modifier.weight(1f))
             StatCard("⏱ Active", "${t.activeMin} min", Modifier.weight(1f))
+        }
+
+        if (live.type != ActivityType.STILL) {
+            Card(Modifier.fillMaxWidth()) {
+                Text(
+                    "Now: ${live.type.label}" + if (live.type.countsReps) "  x ${live.reps}" else "",
+                    Modifier.padding(16.dp), fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+
+        if (sessions.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Workouts today", fontWeight = FontWeight.SemiBold)
+                    sessions.forEach {
+                        val reps = if (it.reps > 0) "${it.reps} reps · " else ""
+                        val tag = if (it.auto) " (auto)" else ""
+                        Text("${it.name}$tag: $reps${it.durationSec / 60} min ${it.durationSec % 60}s · ${it.kcal.toInt()} kcal")
+                    }
+                }
+            }
         }
 
         Card(Modifier.fillMaxWidth()) {

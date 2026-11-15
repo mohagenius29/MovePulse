@@ -6,9 +6,14 @@ enum class ActivityType(val label: String, val met: Float) {
     MOVE("Moving", 2.5f),
     WALK("Walking", 3.5f),
     JOG("Jogging", 7.0f),
-    RUN("Running", 9.8f);
+    RUN("Running", 9.8f),
+    SQUAT("Squats", 5.0f),
+    JUMP("Jumping jacks", 8.0f),
+    DANCE("Dancing", 5.0f);
 
     val isOutdoorRoute: Boolean get() = this == WALK || this == JOG || this == RUN
+    val isExercise: Boolean get() = this == SQUAT || this == JUMP || this == DANCE
+    val countsReps: Boolean get() = this == SQUAT || this == JUMP
 }
 
 object CalorieCalculator {

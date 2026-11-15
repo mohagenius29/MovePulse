@@ -58,5 +58,34 @@ object MotivationEngine {
 
     fun inactivity(minutes: Long) = fill(inactivity.random(), min = minutes)
 
+    private val repLines = listOf(
+        "{reps} {name} and counting! About {kcal} kcal burned. Your muscles are getting stronger 💪",
+        "{reps} {name}! That's {kcal} calories torched, don't stop now 🔥",
+        "Machine mode: {reps} {name} done, {kcal} kcal gone ⚡",
+        "{reps} {name}! Every rep is a vote for the person you're becoming 🌟",
+    )
+
+    private val sessionLines = listOf(
+        "{name} done: {detail}about {kcal} kcal burned. That's how champions train 🏆",
+        "Great session! {name}, {detail}{kcal} kcal burned. Rest, hydrate, repeat 💧",
+        "{name} complete. {detail}You burned around {kcal} calories. Proud of you! 👏",
+    )
+
+    fun repMilestone(type: ActivityType, reps: Int, kcal: Int) =
+        repLines.random()
+            .replace("{reps}", reps.toString())
+            .replace("{name}", type.label.lowercase())
+            .replace("{kcal}", kcal.toString())
+
+    fun sessionDone(type: ActivityType, reps: Int, seconds: Int, kcal: Int): String {
+        val mins = seconds / 60
+        val time = if (mins >= 1) "$mins min" else "$seconds s"
+        val detail = if (reps > 0) "$reps reps in $time, " else "$time, "
+        return sessionLines.random()
+            .replace("{name}", type.label)
+            .replace("{detail}", detail)
+            .replace("{kcal}", kcal.toString())
+    }
+
     fun quote() = quotes[Random.nextInt(quotes.size)]
 }
